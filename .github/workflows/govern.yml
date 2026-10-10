@@ -38,3 +38,14 @@ jobs:
           if [ "$base" = "0000000000000000000000000000000000000000" ]; then echo "S0-DECISION: new ref, no base"; exit 0; fi
           if git diff --name-only "$base...$head" | grep -qx forbidden.txt; then echo "S0-DECISION: FAILED (forbidden.txt touched)"; exit 1; fi
           echo "S0-DECISION: CONFORMS"
+      - name: Q7 probe (what can the minimal workflow token read about rulesets?)
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -uo pipefail
+          api() { curl -s -o /tmp/q7.json -w '%{http_code}' -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "https://api.github.com/$1"; }
+          c=$(api "repos/$GITHUB_REPOSITORY/rulesets"); echo "S0-Q7: list rulesets http=$c $(jq -c '[.[]? | {id,name}]' /tmp/q7.json 2>/dev/null)"
+          id=$(jq -r '.[0].id // empty' /tmp/q7.json 2>/dev/null || true)
+          if [ -n "$id" ]; then c=$(api "repos/$GITHUB_REPOSITORY/rulesets/$id"); echo "S0-Q7: ruleset $id http=$c bypass_actors=$(jq -c '.bypass_actors' /tmp/q7.json) current_user_can_bypass=$(jq -c '.current_user_can_bypass' /tmp/q7.json)"; fi
+          c=$(api "repos/$GITHUB_REPOSITORY/rules/branches/main"); echo "S0-Q7: branch rules http=$c $(jq -c '[.[]? | .type]' /tmp/q7.json 2>/dev/null)"
